@@ -7,6 +7,88 @@ Comprehensive security checklist for React Native and Expo applications.
 - [OWASP Mobile Application Security Checklist](https://mas.owasp.org/checklists/)
 - [React Native Security](https://reactnative.dev/docs/security)
 
+## Reference Summary
+
+The following is a consolidated summary of the above references so auditors can work without visiting external URLs.
+
+### OWASP Mobile Top 10 (2024)
+
+| # | Category | Exploitability | Key Concerns |
+|---|----------|---------------|--------------|
+| M1 | **Improper Credential Usage** | EASY | Hardcoded credentials, improper credential handling, missing encryption for stored creds, lack of API key rotation |
+| M2 | **Inadequate Supply Chain Security** | — | Unvetted third-party libraries, malicious SDKs, lack of dependency auditing |
+| M3 | **Insecure Authentication/Authorization** | — | Weak auth mechanisms, missing server-side enforcement, improper session handling |
+| M4 | **Insufficient Input/Output Validation** | — | Missing input sanitization, injection vectors, improper output encoding |
+| M5 | **Insecure Communication** | EASY | Deprecated protocols, invalid certs, inconsistent SSL/TLS usage. Prevention: SSL/TLS everywhere, strong cipher suites, trusted CAs, certificate pinning, verify SSL chain, encrypt before transmission. iOS: fail-closed cert validation, NSURL pinning. Android: no unconditional cert acceptance, proper `checkServerTrusted` |
+| M6 | **Inadequate Privacy Controls** | — | Excessive data collection, missing consent, PII leakage |
+| M7 | **Insufficient Binary Protections** | — | Missing code obfuscation, reverse engineering exposure, lack of tamper detection |
+| M8 | **Security Misconfiguration** | DIFFICULT | Insecure defaults, weak encryption, world-readable permissions, debugging enabled in prod, cleartext HTTP allowed. Prevention: secure defaults, no hardcoded creds, least privilege, disallow cleartext traffic, cert pinning, disable debugging in prod, disable Android backup for sensitive data |
+| M9 | **Insecure Data Storage** | EASY | Weak/absent encryption, plaintext on filesystem, insufficient access controls. Prevention: strong encryption at rest and in transit, platform-specific storage (Keychain/Keystore), access controls, input validation, session management |
+| M10 | **Insufficient Cryptography** | — | Weak algorithms, improper key management, deprecated crypto functions |
+
+### OWASP MAS Checklist Categories (mapped to React Native)
+
+**MASVS-STORAGE** -- Secure storage, backup exclusion, prevent exposure through logs/UI/keyboard caches.
+- RN concern: AsyncStorage is unencrypted. Use `expo-secure-store` or `react-native-keychain` for sensitive data. Exclude sensitive data from Android backups. Watch for Redux persist writing tokens to AsyncStorage.
+
+**MASVS-CRYPTO** -- Proper key generation, secure algorithms, no hardcoded credentials.
+- RN concern: Never embed API keys or secrets in JS bundle (extractable in plain text). `react-native-dotenv` and `react-native-config` are NOT for secrets. Use server-side orchestration for secret-dependent API calls.
+
+**MASVS-AUTH** -- Biometric auth, credential management, step-up auth, server-side enforcement.
+- RN concern: Biometric auth (`expo-local-authentication`, `react-native-biometrics`) must have fallback. OAuth2 must use PKCE (SHA-256). Recommended library: `react-native-app-auth`. Server-side session validation is mandatory.
+
+**MASVS-NETWORK** -- Encrypted transmission, TLS config, cert pinning, hostname verification, no cleartext.
+- RN concern: All endpoints must use HTTPS. SSL pinning prevents MITM but requires cert rotation planning (certs expire every 1-2 years; app updates needed when server cert renews). Check `NSAppTransportSecurity` (iOS) and `NetworkSecurityConfig` (Android) for cleartext exceptions.
+
+**MASVS-PLATFORM** -- Permission management, WebView security, deep link validation, IPC protection, no sensitive data in notifications/screenshots.
+- RN concern: Deep linking is NOT secure -- no centralized URL scheme registration, malicious apps can hijack custom schemes. Never send sensitive info in deep links. Prefer Universal Links (iOS) over custom URL schemes. WebViews with user-controlled URLs and JS enabled are high risk.
+
+**MASVS-CODE** -- Dependency vulnerabilities, input validation, injection prevention, safe deserialization, updated platform versions.
+- RN concern: `eval()`, `new Function()`, `setTimeout` with string args are injection vectors. Audit npm dependencies regularly. Keep React Native and Expo SDK versions current.
+
+**MASVS-RESILIENCE** -- Code obfuscation, root/jailbreak detection, debugger detection, app integrity verification.
+- RN concern: JS bundle is readable by default. For high-security apps, add jailbreak/root detection (`react-native-device-info`, `jail-monkey`), debugger detection, and consider Hermes bytecode for light obfuscation. Use `FLAG_SECURE` (Android) for screenshot prevention on sensitive screens.
+
+### React Native Official Security Guidance
+
+**Secrets and API Keys:**
+- NEVER hardcode API keys in code -- anything in the JS bundle is accessible in plain text
+- `react-native-dotenv` and `react-native-config` set environment-specific variables but are NOT for secrets (still bundled)
+- Build a server-side orchestration layer (serverless functions, API gateway) to proxy calls that require secrets
+
+**Storage:**
+- `AsyncStorage` is unencrypted key-value storage -- use ONLY for non-sensitive data (preferences, UI state)
+- NEVER store tokens, secrets, or passwords in AsyncStorage
+- iOS: use Keychain Services. Android: use `EncryptedSharedPreferences` or Keystore
+- Recommended libraries: `expo-secure-store`, `react-native-keychain`
+- Caution: do not persist sensitive form data through Redux to AsyncStorage; do not send tokens to monitoring services (Sentry, Crashlytics)
+
+**Deep Linking:**
+- Deep linking has no centralized URL scheme registration -- malicious apps can register the same scheme
+- Never send sensitive information via deep links
+- iOS: prefer Universal Links (associated domains, more secure) over custom URL schemes
+- Always validate deep link parameters before acting on them
+
+**Authentication:**
+- OAuth2 flows must use PKCE (Proof Key for Code Exchange, SHA-256 based)
+- Recommended library: `react-native-app-auth`
+
+**Network Security:**
+- All API communication must use SSL/TLS (HTTPS only)
+- SSL Pinning: embed trusted certificates in the app to prevent MITM attacks
+- Pinning caveat: certificates expire every 1-2 years; you must update the app when the server certificate renews -- plan a rotation strategy
+
+**Quick Audit Checklist (from React Native docs):**
+1. No hardcoded keys or secrets in JS bundle
+2. Backend orchestration for secret-dependent API calls
+3. Appropriate storage (secure store for sensitive data, AsyncStorage only for preferences)
+4. No sensitive data transmitted via deep links
+5. PKCE for all OAuth2 flows
+6. SSL/TLS on every endpoint
+7. Certificate pinning for sensitive apps with a cert rotation plan
+8. Audit all data persisted to disk (AsyncStorage, Redux persist, file system)
+9. Universal Links preferred over custom URL schemes on iOS
+
 ---
 
 ## 1. Sensitive Data Storage

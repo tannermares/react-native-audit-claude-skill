@@ -7,6 +7,38 @@ Standards for auditing React Native applications.
 - [Expo Router](https://docs.expo.dev/router/introduction/)
 - [React Navigation](https://reactnavigation.org/docs/getting-started)
 
+## Reference Summary
+
+Key takeaways from official sources, distilled for audit relevance.
+
+### React Native Core Philosophy
+- "Learn once, write anywhere" -- JavaScript with native rendering via core components (View, Text, Image map directly to platform-native UI).
+- **Expo is the recommended framework** for new React Native apps. Auditors should verify whether the project uses Expo or bare React Native, and flag bare setups that lack a clear justification.
+- Expo provides 50+ modules for native functionality, file-based routing, and tools like Expo Go (rapid dev) and `expo-dev-client` (for native module changes).
+
+### Routing: Expo Router vs React Navigation
+- **Expo Router** is file-based routing built on top of React Navigation. Files in the `app/` directory automatically become routes.
+  - Audit check: If the project uses Expo Router, verify routes live in `app/` and follow file-based conventions. Mixed routing patterns (some file-based, some manual stack definitions) are a red flag.
+  - Key benefits to verify are in use: automatic deep linking (every screen is deep linkable by default), lazy evaluation in production, deferred bundling in dev, universal Fast Refresh.
+  - Expo Router supports offline-first behavior (cached, runs offline with automatic updates) and static rendering for web SEO.
+- **React Navigation 7.x** requires react-native >= 0.72.0, expo >= 52, and TypeScript >= 5.0.0.
+  - Required peer dependencies: `react-native-screens` and `react-native-safe-area-context`. Audit check: verify these are installed.
+  - For Expo projects, dependencies should be installed via `npx expo install` to ensure version compatibility. Flag use of `npm install` or `yarn add` for navigation deps in Expo projects.
+  - Two configuration approaches: **Static** (recommended -- less boilerplate, simpler TypeScript and deep linking) and **Dynamic** (more flexibility but more boilerplate). Audit check: prefer static unless the app requires runtime route changes.
+
+### Android-Specific Setup (React Navigation)
+- `MainActivity` must configure Fragment Factory for `react-native-screens`.
+- Predictive back gesture must be disabled: `android:enableOnBackInvokedCallback="false"` in AndroidManifest.xml. Missing this causes navigation issues on Android 14+.
+
+### What Auditors Should Look For
+1. **Framework choice**: Is the project using Expo (recommended) or bare React Native? If bare, is there a reason?
+2. **Routing consistency**: Is routing purely file-based (Expo Router) or purely stack-based (React Navigation), not a confusing mix?
+3. **Dependency installation method**: Expo projects should use `npx expo install` for native dependencies to avoid version mismatches.
+4. **Navigation config style**: Static configuration is preferred over dynamic unless runtime flexibility is genuinely needed.
+5. **Peer dependency presence**: `react-native-screens` and `react-native-safe-area-context` must be installed for React Navigation to function correctly.
+6. **Android manifest flags**: Check for correct `enableOnBackInvokedCallback` setting and Fragment Factory setup in `MainActivity`.
+7. **Deep linking support**: Expo Router provides this automatically; manual React Navigation setups should have explicit linking configuration.
+
 ---
 
 ## React Hooks Rules

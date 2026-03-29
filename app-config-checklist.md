@@ -8,6 +8,139 @@ Configuration and distribution checklist for React Native and Expo applications.
 - [EAS Update](https://docs.expo.dev/eas-update/introduction/)
 - [Expo Permissions](https://docs.expo.dev/guides/permissions/)
 
+## Reference Summary
+
+### 1. app.json / app.config.js Fields
+
+**Required fields:**
+- `name` -- display name shown to users
+- `slug` -- URL-friendly identifier for the project (used in Expo URLs)
+- `version` -- user-facing version string (maps to `CFBundleShortVersionString` on iOS, `versionName` on Android)
+
+**Platform identifiers (required for store builds):**
+- `ios.bundleIdentifier` -- unique reverse-DNS identifier for the App Store (e.g., `com.company.myapp`)
+- `ios.buildNumber` -- maps to `CFBundleVersion`, must be incremented for each App Store submission
+- `android.package` -- reverse-DNS package name for the Play Store
+- `android.versionCode` -- positive integer, must be strictly incremented for each Play Store release
+
+**Recommended fields:**
+- `icon` -- 1024x1024 PNG, no transparency, used as the base app icon
+- `scheme` -- URL scheme for deep linking (must begin with a lowercase letter)
+- `userInterfaceStyle` -- `"light"`, `"dark"`, or `"automatic"` (follows system setting)
+- `orientation` -- `"default"`, `"portrait"`, or `"landscape"`
+- `owner` -- Expo account that owns the project
+- `sdkVersion` -- Expo SDK version the project targets
+- `runtimeVersion` -- compatibility key for OTA updates; ensures updates only reach compatible native builds
+- `platforms` -- defaults to `["ios", "android"]`
+
+**iOS-specific:**
+- `ios.infoPlist` -- arbitrary Info.plist key-value pairs (permission descriptions, custom settings)
+- `ios.associatedDomains` -- array for Universal Links (e.g., `["applinks:example.com"]`)
+- `ios.appleTeamId` -- Apple Developer team identifier
+- `ios.supportsTablet` -- defaults to `false`
+
+**Android-specific:**
+- `android.permissions` -- array of Android permissions to include
+- `android.intentFilters` -- deep linking and App Links configuration
+- `primaryColor` -- tint color in the Android multitasker
+
+**Other notable fields:**
+- `backgroundColor` -- root view background color
+- `extra` -- custom data accessible at runtime via `Constants.expoConfig.extra`
+- `plugins` -- config plugins that modify native projects at prebuild time
+- `developmentClient` -- settings for Expo dev client builds
+- `updates` -- configure `expo-updates` with automatic check behavior, `fallbackToCacheTimeout`, and code signing
+
+### 2. EAS Build Profile Configuration (eas.json)
+
+**Standard profiles:**
+- **development** -- `developmentClient: true`, `distribution: "internal"`. Used for local dev with the Expo dev client.
+- **preview** -- no dev tools, `distribution: "internal"`. Used for team/QA testing via direct install.
+- **production** -- default profile for `eas build`. Used for store submission.
+
+**Key configuration options:**
+- Custom profile names are supported; `eas build --profile <name>` selects the profile (`production` is the default when `--profile` is omitted)
+- `extends` -- inherit from another profile to share config (up to 5 levels of nesting)
+- `distribution` -- `"internal"` for direct device install (ad hoc / internal testing), omit or `"store"` for App Store / Play Store
+- `developmentClient: true` -- builds include the Expo dev client
+- `simulator: true` -- produces an iOS Simulator build (use with development profile)
+- Platform-specific overrides via `android` and `ios` objects nested within a profile
+- `env` -- environment variables injected into the build
+- Build tool versions: specify `node`, `npm`, `yarn`, `ruby` versions per profile
+- `resourceClass` -- `"medium"` (default) or `"large"` for more build resources
+
+**Best practices:**
+- Use `extends` to share common config between profiles and reduce duplication
+- Create separate simulator profiles for iOS Simulator builds
+- Use `autoIncrement` in production profiles to avoid manual version bumps
+
+### 3. EAS Update Setup and Limitations
+
+**What it does:**
+- Cloud service for over-the-air (OTA) updates via the `expo-updates` library
+- Updates JavaScript, styling, images, and other non-native assets without going through the app store
+
+**Setup steps:**
+1. Install `expo-updates` package
+2. Run `eas update:configure` to set up the project
+3. Create a new native build that includes `expo-updates`
+4. Publish updates: `eas update --channel production --message "description of change"`
+
+**Channels and runtime versions:**
+- Updates are published to a specific channel (e.g., `"production"`, `"preview"`)
+- Each build profile in `eas.json` should specify a `channel`
+- `runtimeVersion` policy ensures updates are only delivered to compatible native builds -- this is critical to prevent crashes from native/JS mismatches
+
+**Update behavior:**
+- By default, checks for updates on each app launch
+- Customizable via the Updates API and the `useUpdates()` hook
+- Deployments dashboard provides visibility into update reach
+- Republish feature allows reverting a problematic update quickly
+- Supports percentage-based rollouts and CI/CD automation
+
+**What CAN be updated OTA:**
+- JavaScript bug fixes
+- UI and styling changes
+- Translations and copy changes
+- Image and asset swaps
+
+**What CANNOT be updated OTA (requires new native build):**
+- Native code changes (new native modules, native config changes)
+- Permission modifications (Info.plist or AndroidManifest changes)
+- Expo SDK version upgrades
+- Any change that alters the native binary
+
+**Compliance:** Updates must comply with Apple App Store and Google Play Store guidelines for OTA updates.
+
+**Billing:** Monthly active users are counted as unique installations that download at least one update.
+
+### 4. Permission Declaration Patterns
+
+**Android permissions:**
+- Use `android.permissions` in app.config to explicitly add permissions
+- Most permissions are auto-included by config plugins when you install the corresponding Expo package (e.g., installing `expo-camera` auto-adds `CAMERA`)
+- Only manually add permissions for extras not covered by plugins (e.g., `SCHEDULE_EXACT_ALARM`)
+- Use `android.blockedPermissions` to remove unwanted permissions that were auto-added (operates at the package level only)
+
+**iOS permissions:**
+- Set permission usage description strings in `ios.infoPlist` (Apple requires a human-readable reason for each permission)
+- Example: `"NSCameraUsageDescription": "Take photos for your profile"`
+- Alternative: use config plugin properties (e.g., `expo-media-library`'s `photosPermission` prop) which set the Info.plist value for you
+- Important: Info.plist changes (including permission descriptions) CANNOT be updated OTA -- they require building and submitting a new native binary
+
+**Web permissions:**
+- Requires HTTPS or localhost for permission APIs to work
+
+**Testing permissions:**
+- To re-test a rejected permission prompt, you must uninstall and reinstall the app (the OS prevents repeated permission prompts after a denial)
+
+**Audit checklist for permissions:**
+- Every declared permission should have a corresponding package in `package.json` that actually uses it
+- Every package that requires a permission should have the permission declared in config
+- iOS permission descriptions should be clear, specific, and explain why the app needs access (vague descriptions cause App Store rejections)
+- Check for over-declared permissions that inflate the permission list unnecessarily
+- Verify `android.blockedPermissions` is used to strip any auto-added permissions the app does not need
+
 ---
 
 ## 1. App Identity

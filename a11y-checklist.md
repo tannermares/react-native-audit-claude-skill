@@ -7,6 +7,96 @@ Accessibility checklist for React Native applications targeting VoiceOver (iOS) 
 - [Apple HIG - Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
 - [Material Design - Accessible Design](https://m3.material.io/foundations/accessible-design/overview)
 
+## Reference Summary
+
+### React Native Accessibility Properties
+
+**Core Props:**
+
+| Prop | Platform | Purpose |
+|------|----------|---------|
+| `accessible` | Both | Makes view discoverable by screen readers. Default `true` for touchables. Maps to `isAccessibilityElement` (iOS) / `focusable` (Android) |
+| `accessibilityLabel` | Both | Text announced by screen reader. Auto-generates by concatenating child Text nodes |
+| `accessibilityHint` | Both | Describes result of an action. iOS: only read if user enables hints. Android: always read after label |
+| `accessibilityRole` | Both | Semantic role. Values: `adjustable`, `button`, `checkbox`, `combobox`, `header`, `image`, `imagebutton`, `link`, `menu`, `menubar`, `menuitem`, `none`, `progressbar`, `radio`, `radiogroup`, `scrollbar`, `search`, `spinbutton`, `summary`, `switch`, `tab`, `tablist`, `text`, `timer`, `togglebutton`, `toolbar`, `grid`, `alert`, `keyboardkey` |
+| `role` | Both | ARIA-style role, takes precedence over `accessibilityRole` |
+| `accessibilityState` | Both | Object with: `disabled` (bool), `selected` (bool), `checked` (bool\|`'mixed'`), `busy` (bool), `expanded` (bool) |
+| `accessibilityValue` | Both | Object with: `min` (int), `max` (int), `now` (int), `text` (string) |
+| `accessibilityActions` | Both | Array of `{ name, label }` for custom actions, paired with `onAccessibilityAction` handler |
+| `accessibilityLabelledBy` | Android | Links form elements via `nativeID` |
+| `accessibilityLanguage` | iOS | BCP 47 language tag for pronunciation |
+| `accessibilityIgnoresInvertColors` | iOS | Prevents color inversion (use on photos/videos) |
+
+**Modern ARIA Props (map to native equivalents):**
+`aria-label`, `aria-labelledby`, `aria-live`, `aria-hidden`, `aria-checked`, `aria-disabled`, `aria-expanded`, `aria-busy`, `aria-selected`, `aria-modal` (iOS only), `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, `aria-valuetext`
+
+**iOS-Specific Props:**
+
+| Prop | Purpose |
+|------|---------|
+| `accessibilityViewIsModal` | VoiceOver ignores sibling elements (use in modals) |
+| `accessibilityElementsHidden` | Hides element subtree from VoiceOver |
+| `accessibilityShowsLargeContentViewer` | Shows large content on long press (iOS 13+) |
+| `accessibilityLargeContentTitle` | Title displayed in the large content viewer |
+| `onAccessibilityEscape` | Handler for two-finger Z gesture (dismiss) |
+| `onAccessibilityTap` | Handler for double-tap activation |
+| `onMagicTap` | Handler for two-finger double-tap (most relevant action) |
+
+**Android-Specific Props:**
+
+| Prop | Purpose |
+|------|---------|
+| `accessibilityLiveRegion` | Announces dynamic content changes. Values: `'none'`, `'polite'`, `'assertive'` |
+| `importantForAccessibility` | Controls accessibility tree inclusion. Values: `'auto'`, `'yes'`, `'no'`, `'no-hide-descendants'` |
+
+**Standard Accessibility Actions:**
+
+| Action | Platform |
+|--------|----------|
+| `activate` | Both |
+| `increment` / `decrement` | Both |
+| `magicTap` | iOS only |
+| `escape` | iOS only |
+| `longpress` | Android only |
+| `expand` / `collapse` | Android only |
+
+**Experimental:**
+- `experimental_accessibilityOrder` - controls VoiceOver/TalkBack focus order via `nativeID` references
+
+### iOS Guidelines (Apple HIG)
+
+- **Touch targets:** minimum 44x44 points
+- **Dynamic Type:** support font scaling; never hard-code font sizes in points without scaling
+- **Color contrast:** WCAG AA minimum -- 4.5:1 for normal text, 3:1 for large text (18pt+ or 14pt+ bold)
+- **VoiceOver:** every interactive element needs a label, appropriate trait/role, and optional hint
+- **Reduce Motion:** check `AccessibilityInfo.isReduceMotionEnabled()` and disable non-essential animations
+- **Color independence:** never use color as the sole indicator of state or information
+- **Media:** provide audio descriptions and captions for video/audio content
+- **Test on device:** VoiceOver is NOT available in the iOS Simulator; must test on a real device
+- **Xcode Accessibility Inspector:** use for macOS-based auditing of element labels, traits, and frames
+
+### Android Guidelines (Material Design 3)
+
+- **Touch targets:** minimum 48x48 dp (larger than iOS requirement)
+- **TalkBack:** provide `contentDescription` (via `accessibilityLabel`) and logical traversal order
+- **Color contrast:** 4.5:1 for normal text, 3:1 for large text and graphical elements
+- **Text scaling:** support up to 200% text size without layout breakage
+- **Motion:** respect the system "Remove animations" preference; check `AccessibilityInfo.isReduceMotionEnabled()`
+- **Test with TalkBack:** enable via Settings > Accessibility > TalkBack, or via `adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`
+
+### Quick Cross-Platform Audit Checklist
+
+| Check | iOS | Android |
+|-------|-----|---------|
+| Min touch target | 44x44 pt | 48x48 dp |
+| Hide decorative elements | `accessibilityElementsHidden` | `importantForAccessibility="no-hide-descendants"` |
+| Announce dynamic content | `AccessibilityInfo.announceForAccessibility()` | `accessibilityLiveRegion="polite"` |
+| Modal focus trapping | `accessibilityViewIsModal` | `importantForAccessibility` on overlay |
+| Screen reader testing | VoiceOver (real device only) | TalkBack (device or emulator) |
+| Text contrast ratio | 4.5:1 normal / 3:1 large | 4.5:1 normal / 3:1 large |
+| Font scaling | Dynamic Type support | Up to 200% text size |
+| Reduce motion | `isReduceMotionEnabled` | `isReduceMotionEnabled` |
+
 ---
 
 ## 1. Accessible Labels
